@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "sourceMap": true,
+    "target": "es2016",
+    "newLine": "LF",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "strict": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "jsx": "preserve",
+    "lib": ["es2016", "dom"],
+    "paths": {
+      "@tiny_vue/*": ["packages/*/src"]
+    }
+  }
+}
