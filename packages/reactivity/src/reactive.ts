@@ -52,3 +52,5 @@ function createReactiveObject(
 
   return proxy;
 }
+
+export function toReactive(v) {}
