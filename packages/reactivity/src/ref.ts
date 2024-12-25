@@ -99,3 +99,7 @@ export function proxyRefs(objectWithRef) {
     },
   });
 }
+
+export function isRef(v) {
+  return v && v.__v_isRef;
+}
