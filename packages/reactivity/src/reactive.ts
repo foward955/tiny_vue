@@ -53,4 +53,6 @@ function createReactiveObject(
   return proxy;
 }
 
-export function toReactive(v) {}
+export function toReactive(v) {
+  return isObject(v) ? reactive(v) : v;
+}

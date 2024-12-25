@@ -1,3 +1,5 @@
+import { DirtyLevels } from "./constant";
+
 /**
  * 全局记录当前的副作用
  */
@@ -36,16 +38,29 @@ function postCleanEffect(effect) {
   }
 }
 
-class ReactiveEffect {
+export class ReactiveEffect {
   _trackId = 0; // 用于记录当前effect执行了几次
   _depsLength = 0;
   _running = 0;
   deps = [];
+
+  _dirtyLevels = DirtyLevels.Dirty;
+
   public active = true;
 
   constructor(public fn, public scheduler) {}
 
+  public get dirty() {
+    return this._dirtyLevels === DirtyLevels.Dirty;
+  }
+
+  public set dirty(v) {
+    this._dirtyLevels = v ? DirtyLevels.Dirty : DirtyLevels.NoDirty;
+  }
+
   run() {
+    this._dirtyLevels = DirtyLevels.NoDirty;
+
     if (!this.active) {
       return this.fn();
     }
@@ -101,6 +116,10 @@ export function trackEffect(dep) {
 
 export function triggerEffects(dep) {
   for (const effect of dep.keys()) {
+    if (effect._dirtyLevels < DirtyLevels.Dirty) {
+      effect._dirtyLevels = DirtyLevels.Dirty;
+    }
+
     if (!effect._running) {
       if (effect.scheduler) {
         effect.scheduler();

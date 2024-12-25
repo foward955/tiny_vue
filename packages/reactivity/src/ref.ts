@@ -33,7 +33,7 @@ class RefImpl {
   }
 }
 
-function trackRefValue(ref) {
+export function trackRefValue(ref) {
   if (activeEffect) {
     if (!ref.dep) {
       ref.dep = new Map();
@@ -47,7 +47,7 @@ function trackRefValue(ref) {
   }
 }
 
-function triggerRefValue(ref) {
+export function triggerRefValue(ref) {
   let dep = ref.dep;
   if (dep) {
     triggerEffects(dep);
