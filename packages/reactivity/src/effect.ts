@@ -1,3 +1,6 @@
+/**
+ * 全局记录当前的副作用
+ */
 export let activeEffect;
 
 export function effect(fn, options?) {
@@ -35,6 +38,11 @@ class ReactiveEffect {
   }
 }
 
+/**
+ * 追踪副作用
+ * @param effect 副作用
+ * @param dep
+ */
 export function trackEffect(effect, dep) {
   dep.set(effect, effect._trackId);
   // effect和dep关联起来

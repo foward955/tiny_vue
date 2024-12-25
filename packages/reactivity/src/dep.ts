@@ -15,14 +15,14 @@ import { activeEffect, trackEffect, triggerEffects } from "./effect";
  */
 const targetMap = new WeakMap();
 
-export const createDep = (cleanup, key) => {
+export function createDep(cleanup, key) {
   const dep = new Map() as any;
 
   dep.cleanup = cleanup;
   dep.name = key; // 标识这个映射表服务于哪个属性
 
   return dep;
-};
+}
 
 export function track(target, key) {
   // activeEffect 存在，说明key是在effect中访问的
