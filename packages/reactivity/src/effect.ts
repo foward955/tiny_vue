@@ -8,15 +8,39 @@ export function effect(fn, options?) {
     _effect.run();
   });
 
+  // 先运行一次
   _effect.run();
 
-  return _effect;
+  if (options) {
+    Object.assign(_effect, options);
+  }
+
+  const runner = _effect.run.bind(_effect);
+  runner.effect = _effect;
+
+  return runner;
+}
+
+function preCleanEffect(effect) {
+  effect._depsLength = 0;
+  effect._trackId++;
+}
+
+function postCleanEffect(effect) {
+  if (effect.deps.length > effect._depsLength) {
+    for (let index = effect._depsLength; index < effect.deps.length; index++) {
+      cleanDepEffect(effect.deps[index], effect);
+    }
+
+    effect.deps.length = effect._depsLength;
+  }
 }
 
 class ReactiveEffect {
   _trackId = 0; // 用于记录当前effect执行了几次
-  deps = [];
   _depsLength = 0;
+  _running = 0;
+  deps = [];
   public active = true;
 
   constructor(public fn, public scheduler) {}
@@ -31,10 +55,22 @@ class ReactiveEffect {
     try {
       activeEffect = this;
 
-      return this.fn();
+      // effect重新执行前，需要将上一次依赖情况清理
+      preCleanEffect(this);
+      this._running++;
+      return this.fn(); // 收集依赖
     } finally {
+      this._running--;
+      postCleanEffect(this);
       activeEffect = prevEffect;
     }
+  }
+}
+
+function cleanDepEffect(dep, effect) {
+  dep.delete(effect);
+  if (dep.size === 0) {
+    dep.cleanup();
   }
 }
 
@@ -43,16 +79,32 @@ class ReactiveEffect {
  * @param effect 副作用
  * @param dep
  */
-export function trackEffect(effect, dep) {
-  dep.set(effect, effect._trackId);
-  // effect和dep关联起来
-  effect.deps[effect._depsLength++] = dep;
+export function trackEffect(dep) {
+  // 重新收集，不需要的移除
+  // console.log(dep, activeEffect);
+
+  if (dep.get(activeEffect) !== activeEffect._trackId) {
+    dep.set(activeEffect, activeEffect._trackId);
+    let oldDep = activeEffect.deps[activeEffect._depsLength];
+
+    if (oldDep !== dep) {
+      if (oldDep) {
+        // 删除旧的
+        cleanDepEffect(oldDep, activeEffect);
+      }
+      activeEffect.deps[activeEffect._depsLength++] = dep;
+    } else {
+      activeEffect._depsLength++;
+    }
+  }
 }
 
 export function triggerEffects(dep) {
   for (const effect of dep.keys()) {
-    if (effect.scheduler) {
-      effect.scheduler();
+    if (!effect._running) {
+      if (effect.scheduler) {
+        effect.scheduler();
+      }
     }
   }
 }

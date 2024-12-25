@@ -1,5 +1,7 @@
 import { activeEffect, trackEffect, triggerEffects } from "./effect";
 
+type KeyToDepMap = any; // TODO: specify definition
+
 /**
  * 原始对象的effect链
  * WeakMap {
@@ -13,18 +15,9 @@ import { activeEffect, trackEffect, triggerEffects } from "./effect";
  *    }
  * }
  */
-const targetMap = new WeakMap();
+const targetMap: WeakMap<object, KeyToDepMap> = new WeakMap();
 
-export function createDep(cleanup, key) {
-  const dep = new Map() as any;
-
-  dep.cleanup = cleanup;
-  dep.name = key; // 标识这个映射表服务于哪个属性
-
-  return dep;
-}
-
-export function track(target, key) {
+export function track(target: object, key: unknown) {
   // activeEffect 存在，说明key是在effect中访问的
   if (activeEffect) {
     let depsMap = targetMap.get(target);
@@ -34,19 +27,19 @@ export function track(target, key) {
 
     let dep = depsMap.get(key);
     if (!dep) {
-      depsMap.set(
-        key,
-        (dep = createDep(() => {
-          depsMap.delete(key);
-        }, key)) // 后面用于清理不需要的属性
-      );
+      dep = new Map() as any;
+
+      dep.name = key;
+      dep.cleanup = () => {
+        depsMap.delete(key);
+      }; // 后面用于清理不需要的属性
+
+      depsMap.set(key, dep);
     }
 
     // 将当前的effect放入dep映射表中，后续可以根据值的变化触发此dep中存放的effect
-    trackEffect(activeEffect, dep);
+    trackEffect(dep);
   }
-
-  console.log(targetMap);
 }
 
 /**

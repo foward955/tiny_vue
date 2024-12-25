@@ -2,17 +2,21 @@ import { isObject } from "@tiny_vue/shared";
 import { mutableHandlers } from "./baseHandler";
 import { ReactiveFlags } from "./constant";
 
+export interface Target {
+  [ReactiveFlags.IS_REACTIVE]?: boolean;
+}
+
 /**
  * 原始对象映射响应式对象
  */
-const reactiveMap = new WeakMap();
+const reactiveMap: WeakMap<Target, any> = new WeakMap();
 
 /**
  * 将原始对象转换为响应式对象
  * @param target 转换成响应式对象的原始对象
  * @returns 响应式对象
  */
-export function reactive<Target extends object>(target: Target) {
+export function reactive(target: object) {
   return createReactiveObject(target, mutableHandlers);
 }
 
@@ -22,7 +26,10 @@ export function reactive<Target extends object>(target: Target) {
  * @param mutableHandlers proxy handler, get set 等方法
  * @returns 响应式对象
  */
-function createReactiveObject(target: any, mutableHandlers: ProxyHandler<any>) {
+function createReactiveObject(
+  target: Target,
+  mutableHandlers: ProxyHandler<any>
+) {
   // reactive 作用于对象
   if (!isObject(target)) {
     return;
