@@ -11,3 +11,9 @@ export function isFunction(v) {
 export function isReactive(v) {
   return v && v[ReactiveFlags.IS_REACTIVE];
 }
+
+export function isString(v) {
+  return typeof v === "string";
+}
+
+export * from "./shapeFlags";

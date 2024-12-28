@@ -100,14 +100,16 @@ function cleanDepEffect(dep, effect) {
 /**
  * 追踪副作用
  * @param effect 副作用
- * @param dep
+ * @param dep Map { effect -> _trackId }
  */
 export function trackEffect(dep) {
   // 重新收集，不需要的移除
   // console.log(dep, activeEffect);
 
   if (dep.get(activeEffect) !== activeEffect._trackId) {
+    // effect与_trackId进行映射
     dep.set(activeEffect, activeEffect._trackId);
+
     let oldDep = activeEffect.deps[activeEffect._depsLength];
 
     if (oldDep !== dep) {
@@ -115,10 +117,10 @@ export function trackEffect(dep) {
         // 删除旧的
         cleanDepEffect(oldDep, activeEffect);
       }
-      activeEffect.deps[activeEffect._depsLength++] = dep;
-    } else {
-      activeEffect._depsLength++;
+      activeEffect.deps[activeEffect._depsLength] = dep;
     }
+
+    activeEffect._depsLength++;
   }
 }
 

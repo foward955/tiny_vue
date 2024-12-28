@@ -2,7 +2,7 @@
   "name": "@tiny_vue/reactivity",
   "version": "1.0.0",
   "module": "dist/reactivity.esm-bundler.js",
-  "unpkg": "dist/reactivity/global.js",
+  "unpkg": "dist/reactivity.global.js",
   "buildOptions": {
     "name": "TinyVueReactivity",
     "formats": [
