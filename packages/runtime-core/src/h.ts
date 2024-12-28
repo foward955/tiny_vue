@@ -1,5 +1,5 @@
 import { isObject } from "@tiny_vue/shared";
-import { createVNode, isVnode } from "./createVNode";
+import { createVNode, isVNode } from "./createVNode";
 
 export function h(type, propsOrChildren?, children?) {
   let l = arguments.length;
@@ -8,21 +8,19 @@ export function h(type, propsOrChildren?, children?) {
     if (isObject(propsOrChildren) && !Array.isArray(propsOrChildren)) {
       // 属性或虚拟节点
 
-      if (isVnode(propsOrChildren)) {
+      if (isVNode(propsOrChildren)) {
         // h('div', h('a'))
         return createVNode(type, null, [propsOrChildren]);
-      } else {
-        return createVNode(type, propsOrChildren);
       }
+      return createVNode(type, propsOrChildren);
+    } else {
+      // 文本或数组
+      return createVNode(type, null, propsOrChildren);
     }
-
-    // 文本或数组
-    return createVNode(type, null, [propsOrChildren]);
   } else {
     if (l > 3) {
-      children = Array.from(arguments).slice(2);
-    }
-    if (l === 3 && isVnode(children)) {
+      children = Array.prototype.slice.call(arguments, 2);
+    } else if (l === 3 && isVNode(children)) {
       children = [children];
     }
 
