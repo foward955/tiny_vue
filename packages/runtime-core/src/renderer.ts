@@ -20,7 +20,7 @@ export function createRenderer(renderOptions) {
     }
   };
 
-  const mountElement = (vnode, container) => {
+  const mountElement = (vnode, container, anchor) => {
     const { type, children, props, shapeFlag } = vnode;
 
     let el = (vnode.el = hostCreateElement(type));
@@ -37,12 +37,12 @@ export function createRenderer(renderOptions) {
       mountChildren(children, el);
     }
 
-    hostInsert(el, container);
+    hostInsert(el, container, anchor);
   };
 
-  const processElement = (n1, n2, container) => {
+  const processElement = (n1, n2, container, anchor) => {
     if (n1 === null) {
-      mountElement(n2, container);
+      mountElement(n2, container, anchor);
     } else {
       patchElement(n1, n2, container);
     }
@@ -107,6 +107,65 @@ export function createRenderer(renderOptions) {
     }
 
     // 处理增加和删除的特殊情况
+    if (i > e1) {
+      // 新的多
+      if (i <= e2) {
+        let nextPos = e2 + 1;
+
+        let anchor = c2[nextPos]?.el;
+        while (i <= e2) {
+          patch(null, c2[i], el, anchor);
+          i++;
+        }
+      }
+    } else if (i > e2) {
+      // 新的少
+      if (i <= e1) {
+        while (i <= e1) {
+          unmount(c1[i]);
+          i++;
+        }
+      }
+    } else {
+      let s1 = i;
+      let s2 = i;
+
+      // 快速查找老的是否在新的里面，没有就删除，有就更新
+      const keyToNewIndexMap = new Map();
+
+      for (let index = s2; index <= e2; index++) {
+        keyToNewIndexMap.set(c2[index].key, index);
+      }
+
+      for (let index = s1; index <= e1; index++) {
+        const v = c1[i];
+        const newIndex = keyToNewIndexMap.get(v.key);
+
+        if (newIndex === undefined) {
+          // 新的里面未找到，则删除
+          unmount(v);
+        } else {
+          patch(v, c2[newIndex], el);
+        }
+      }
+      // 调整顺序
+      // 按照新的序列，倒序插入(insertBefore可以设置参照)
+
+      // 插入过程中新的多，需要挂载
+      let toBePatched = e2 - s2 + 1; // 倒序插入的个数
+      for (let index = toBePatched - 1; index >= 0; index--) {
+        let newIndex = s2 + index;
+        let anchor = c2[newIndex + 1]?.el;
+        let vnode = c2[newIndex];
+
+        if (!vnode.el) {
+          // 新增的
+          patch(null, vnode, el, anchor);
+        } else {
+          hostInsert(vnode.el, el, anchor);
+        }
+      }
+    }
   };
 
   /**
@@ -174,7 +233,7 @@ export function createRenderer(renderOptions) {
     patchChildren(n1, n2, el);
   };
 
-  const patch = (n1, n2, container) => {
+  const patch = (n1, n2, container, anchor = null) => {
     // 两次一样的元素，则跳过
     if (n1 === n2) {
       return;
@@ -186,7 +245,7 @@ export function createRenderer(renderOptions) {
     }
 
     // 对元素处理
-    processElement(n1, n2, container);
+    processElement(n1, n2, container, anchor);
   };
 
   const unmount = (vnode) => {
