@@ -66,6 +66,8 @@ export function createRenderer(renderOptions) {
     }
   };
 
+  // vue3中有两种diff (靶向更新)
+  // 当前为全量diff
   const patchKeyedChildren = (c1, c2, el) => {
     // 比较两儿子的差异更新el
     // appendChild removeChild insertBefore
@@ -133,26 +135,33 @@ export function createRenderer(renderOptions) {
       // 快速查找老的是否在新的里面，没有就删除，有就更新
       const keyToNewIndexMap = new Map();
 
+      let toBePatched = e2 - s2 + 1;
+      const newIndexToOldMapIndex = new Array(toBePatched).fill(0);
+
       for (let index = s2; index <= e2; index++) {
         keyToNewIndexMap.set(c2[index].key, index);
       }
 
       for (let index = s1; index <= e1; index++) {
-        const v = c1[i];
+        const v = c1[index];
         const newIndex = keyToNewIndexMap.get(v.key);
 
         if (newIndex === undefined) {
           // 新的里面未找到，则删除
           unmount(v);
         } else {
+          newIndexToOldMapIndex[newIndex - s2] = index + 1; // 避免index为0的歧义
           patch(v, c2[newIndex], el);
         }
       }
       // 调整顺序
       // 按照新的序列，倒序插入(insertBefore可以设置参照)
 
+      let increasingSeq = getSequence(newIndexToOldMapIndex);
+      let j = increasingSeq.length - 1;
+
       // 插入过程中新的多，需要挂载
-      let toBePatched = e2 - s2 + 1; // 倒序插入的个数
+      // let toBePatched = e2 - s2 + 1; // 倒序插入的个数
       for (let index = toBePatched - 1; index >= 0; index--) {
         let newIndex = s2 + index;
         let anchor = c2[newIndex + 1]?.el;
@@ -162,7 +171,11 @@ export function createRenderer(renderOptions) {
           // 新增的
           patch(null, vnode, el, anchor);
         } else {
-          hostInsert(vnode.el, el, anchor);
+          if (index === increasingSeq[j]) {
+            j--; // 优化
+          } else {
+            hostInsert(vnode.el, el, anchor);
+          }
         }
       }
     }
@@ -269,4 +282,45 @@ export function createRenderer(renderOptions) {
   return {
     render,
   };
+}
+
+function getSequence(arr: number[]): number[] {
+  const p = arr.slice();
+  const result = [0];
+  let i, j, u, v, c;
+  const len = arr.length;
+  for (i = 0; i < len; i++) {
+    const arrI = arr[i];
+    if (arrI !== 0) {
+      j = result[result.length - 1];
+      if (arr[j] < arrI) {
+        p[i] = j;
+        result.push(i);
+        continue;
+      }
+      u = 0;
+      v = result.length - 1;
+      while (u < v) {
+        c = (u + v) >> 1;
+        if (arr[result[c]] < arrI) {
+          u = c + 1;
+        } else {
+          v = c;
+        }
+      }
+      if (arrI < arr[result[u]]) {
+        if (u > 0) {
+          p[i] = result[u - 1];
+        }
+        result[u] = i;
+      }
+    }
+  }
+  u = result.length;
+  v = result[u - 1];
+  while (u-- > 0) {
+    result[u] = v;
+    v = p[v];
+  }
+  return result;
 }
