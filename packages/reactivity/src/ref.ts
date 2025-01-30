@@ -1,6 +1,20 @@
 import { activeEffect, trackEffect, triggerEffects } from "./effect";
 import { toReactive } from "./reactive";
 
+declare const RefSymbol: unique symbol;
+export declare const RawSymbol: unique symbol;
+
+export interface Ref<T = any, S = T> {
+  get value(): T;
+  set value(_: S);
+  /**
+   * Type differentiator only.
+   * We need this to be in public d.ts but don't want it to show up in IDE
+   * autocomplete, so we use a private Symbol instead.
+   */
+  [RefSymbol]: true;
+}
+
 export function ref(target) {
   return createRef(target);
 }
@@ -18,12 +32,18 @@ class RefImpl {
     this._value = toReactive(rawValue);
   }
 
+  /**
+   * 通过ref定义的变量，在get value属性时触发依赖收集
+   */
   get value() {
     trackRefValue(this);
 
     return this._value;
   }
 
+  /**
+   * 通过ref定义的变量，在set value属性时触发更新派发
+   */
   set value(newVal) {
     if (this.rawValue !== newVal) {
       this.rawValue = newVal;

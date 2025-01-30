@@ -1,6 +1,7 @@
-import { isFunction, isObject, isReactive } from "@tiny_vue/shared";
+import { isFunction, isObject } from "@tiny_vue/shared";
 import { ReactiveEffect } from "./effect";
 import { isRef } from "./ref";
+import { isReactive } from "./reactive";
 
 export function watch(source, cb, options = {} as any) {
   return doWatch(source, cb, options);

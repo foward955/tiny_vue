@@ -4,6 +4,9 @@ import { ReactiveFlags } from "./constant";
 
 export interface Target {
   [ReactiveFlags.IS_REACTIVE]?: boolean;
+  [ReactiveFlags.IS_READONLY]?: boolean;
+  [ReactiveFlags.IS_SHALLOW]?: boolean;
+  [ReactiveFlags.RAW]?: any;
 }
 
 /**
@@ -17,7 +20,7 @@ const reactiveMap: WeakMap<Target, any> = new WeakMap();
  * @returns 响应式对象
  */
 export function reactive(target: object) {
-  return createReactiveObject(target, mutableHandlers);
+  return createReactiveObject(target, mutableHandlers, reactiveMap);
 }
 
 /**
@@ -28,7 +31,8 @@ export function reactive(target: object) {
  */
 function createReactiveObject(
   target: Target,
-  mutableHandlers: ProxyHandler<any>
+  mutableHandlers: ProxyHandler<any>,
+  proxyMap: WeakMap<Target, any>
 ) {
   // reactive 作用于对象
   if (!isObject(target)) {
@@ -41,16 +45,32 @@ function createReactiveObject(
   }
 
   // 防止嵌套代理
-  const existProxy = reactiveMap.get(target);
+  const existProxy = proxyMap.get(target);
   if (existProxy) {
     return existProxy;
   }
 
   let proxy = new Proxy(target, mutableHandlers);
 
-  reactiveMap.set(target, proxy);
+  proxyMap.set(target, proxy);
 
   return proxy;
+}
+
+export function isReactive(value: unknown): boolean {
+  if (isReadonly(value)) {
+    return isReactive((value as Target)[ReactiveFlags.RAW]);
+  }
+
+  return !!(value && (value as Target)[ReactiveFlags.IS_REACTIVE]);
+}
+
+export function isReadonly(value: unknown): boolean {
+  return !!(value && (value as Target)[ReactiveFlags.IS_READONLY]);
+}
+
+export function isShallow(value: unknown): boolean {
+  return !!(value && (value as Target)[ReactiveFlags.IS_SHALLOW]);
 }
 
 export function toReactive(v) {

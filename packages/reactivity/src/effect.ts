@@ -3,9 +3,15 @@ import { DirtyLevels } from "./constant";
 /**
  * 全局记录当前的副作用
  */
-export let activeEffect;
+export let activeEffect: ReactiveEffect;
 
-export function effect(fn, options?) {
+/**
+ * 用于副作用函数的创建，当副作用函数依赖的响应式数据发生变化的时候触发副作用函数。
+ * @param fn
+ * @param options
+ * @returns
+ */
+export function effect<T = any>(fn: () => T, options?) {
   const _effect = new ReactiveEffect(fn, () => {
     _effect.run();
   });

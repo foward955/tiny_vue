@@ -1,8 +1,10 @@
 import { activeEffect, trackEffect, triggerEffects } from "./effect";
 
-type KeyToDepMap = any; // TODO: specify definition
+type Dep = any;
+type KeyToDepMap = Map<any, Dep>; // TODO: specify definition
 
 /**
+ * ```
  * 原始对象的effect链
  * WeakMap {
  *    { name: 'mk' }: Map {
@@ -14,6 +16,7 @@ type KeyToDepMap = any; // TODO: specify definition
  *      ...
  *    }
  * }
+ * ```
  */
 const targetMap: WeakMap<object, KeyToDepMap> = new WeakMap();
 

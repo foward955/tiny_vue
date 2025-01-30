@@ -1,5 +1,30 @@
 import { ShapeFlags } from "@tiny_vue/shared";
-import { isSameVNode } from "./createVNode";
+import { isSameVNodeType, VNode } from "./createVNode";
+
+// Renderer Node can technically be any object in the context of core renderer
+// logic - they are never directly operated on and always passed to the node op
+// functions provided via options, so the internal constraint is really just
+// a generic object.
+export interface RendererNode {
+  [key: string | symbol]: any;
+}
+
+export interface RendererElement extends RendererNode {}
+
+// These functions are created inside a closure and therefore their types cannot
+// be directly exported. In order to avoid maintaining function signatures in
+// two places, we declare them once here and use them inside the closure.
+type PatchFn = (
+  n1: VNode | null, // null means this is a mount
+  n2: VNode,
+  container: RendererElement,
+  anchor?: RendererNode | null
+  // parentComponent?: ComponentInternalInstance | null,
+  // parentSuspense?: SuspenseBoundary | null,
+  // namespace?: ElementNamespace,
+  // slotScopeIds?: string[] | null,
+  // optimized?: boolean
+) => void;
 
 export function createRenderer(renderOptions) {
   const {
@@ -20,7 +45,11 @@ export function createRenderer(renderOptions) {
     }
   };
 
-  const mountElement = (vnode, container, anchor) => {
+  const mountElement = (
+    vnode: VNode,
+    container: RendererElement,
+    anchor: RendererNode | null
+  ) => {
     const { type, children, props, shapeFlag } = vnode;
 
     let el = (vnode.el = hostCreateElement(type));
@@ -40,10 +69,17 @@ export function createRenderer(renderOptions) {
     hostInsert(el, container, anchor);
   };
 
-  const processElement = (n1, n2, container, anchor) => {
+  const processElement = (
+    n1: VNode | null, // n1是旧vnode / null，用于与新vnode(n2)做对比；如果是n1为null，则是挂载n2
+    n2: VNode,
+    container: RendererElement,
+    anchor: RendererNode | null
+  ) => {
+    // 如果是n1为null，则是挂载n2
     if (n1 === null) {
       mountElement(n2, container, anchor);
     } else {
+      // n1是旧vnode，用于与新vnode(n2)做对比
       patchElement(n1, n2, container);
     }
   };
@@ -68,7 +104,7 @@ export function createRenderer(renderOptions) {
 
   // vue3中有两种diff (靶向更新)
   // 当前为全量diff
-  const patchKeyedChildren = (c1, c2, el) => {
+  const patchKeyedChildren = (c1: any[], c2: any[], el) => {
     // 比较两儿子的差异更新el
     // appendChild removeChild insertBefore
     // [a,b,c,e,f,d]
@@ -78,15 +114,18 @@ export function createRenderer(renderOptions) {
     // 2.
 
     let i = 0; // 开始对比索引
-    let e1 = c1.length - 1; // 第一个数组尾部索引
-    let e2 = c2.length - 1; // 第二个数组尾部索引
+    let e1 = c1.length - 1; // 旧vnode数组的尾部索引
+    let e2 = c2.length - 1; // 新vnode数组的尾部索引
 
+    // 1. sync from start
+    // (a b) c
+    // (a b) d e
     while (i <= e1 && i <= e2) {
       // 任何一个数组循环结束，就要终止比较
       const n1 = c1[i];
       const n2 = c2[i];
 
-      if (isSameVNode(n1, n2)) {
+      if (isSameVNodeType(n1, n2)) {
         patch(n1, n2, el);
       } else {
         break;
@@ -94,11 +133,14 @@ export function createRenderer(renderOptions) {
       i++;
     }
 
+    // 2. sync from end
+    // a (b c)
+    // d e (b c)
     while (i <= e1 && i <= e2) {
       const n1 = c1[e1];
       const n2 = c2[e2];
 
-      if (isSameVNode(n1, n2)) {
+      if (isSameVNodeType(n1, n2)) {
         patch(n1, n2, el);
       } else {
         break;
@@ -108,19 +150,34 @@ export function createRenderer(renderOptions) {
       e2--;
     }
 
-    // 处理增加和删除的特殊情况
+    // 3. common sequence + mount
+    // (a b)
+    // (a b) c
+    // i = 2, e1 = 1, e2 = 2
+    // (a b)
+    // c (a b)
+    // i = 0, e1 = -1, e2 = 0
     if (i > e1) {
       // 新的多
       if (i <= e2) {
         let nextPos = e2 + 1;
-
         let anchor = c2[nextPos]?.el;
+
         while (i <= e2) {
           patch(null, c2[i], el, anchor);
           i++;
         }
       }
-    } else if (i > e2) {
+    }
+
+    // 4. common sequence + unmount
+    // (a b) c
+    // (a b)
+    // i = 2, e1 = 2, e2 = 1
+    // a (b c)
+    // (b c)
+    // i = 0, e1 = 0, e2 = -1
+    else if (i > e2) {
       // 新的少
       if (i <= e1) {
         while (i <= e1) {
@@ -128,19 +185,29 @@ export function createRenderer(renderOptions) {
           i++;
         }
       }
-    } else {
-      let s1 = i;
-      let s2 = i;
+    }
 
-      // 快速查找老的是否在新的里面，没有就删除，有就更新
+    // 5. unknown sequence
+    // [i ... e1 + 1]: a b [c d e] f g
+    // [i ... e2 + 1]: a b [e d c h] f g
+    // i = 2, e1 = 4, e2 = 5
+    else {
+      const s1 = i; // prev starting index
+      const s2 = i; // next starting index
+
+      // 5.1 为新的vnode节点创建vnode key :vnode index 的map
       const keyToNewIndexMap = new Map();
+      for (let index = s2; index <= e2; index++) {
+        const nextChild = c2[index];
 
+        keyToNewIndexMap.set(nextChild.key, index);
+      }
+
+      // 5.2 遍历旧vnode数组的节点，从新的vnode数组中找出旧节点key的索引，如果不存在，则需要卸载。
+      // 如果存在，则记录旧索引（+1 避免0冲突）并更新
+      // 记录的旧索引数组，之后用于计算最长递增子序列，用于降低节点移动次数
       let toBePatched = e2 - s2 + 1;
       const newIndexToOldMapIndex = new Array(toBePatched).fill(0);
-
-      for (let index = s2; index <= e2; index++) {
-        keyToNewIndexMap.set(c2[index].key, index);
-      }
 
       for (let index = s1; index <= e1; index++) {
         const v = c1[index];
@@ -154,9 +221,9 @@ export function createRenderer(renderOptions) {
           patch(v, c2[newIndex], el);
         }
       }
-      // 调整顺序
-      // 按照新的序列，倒序插入(insertBefore可以设置参照)
 
+      // 5.3 节点移动和挂载
+      // 生成最长递增子序列，减少节点的移动次数
       let increasingSeq = getSequence(newIndexToOldMapIndex);
       let j = increasingSeq.length - 1;
 
@@ -200,7 +267,7 @@ export function createRenderer(renderOptions) {
     let c2 = n2.children;
 
     const prevShapeFlag = n1.shapeFlag;
-    const currShapeFlag = n1.shapeFlag;
+    const currShapeFlag = n2.shapeFlag;
 
     if (currShapeFlag & ShapeFlags.TEXT_CHILDREN) {
       if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
@@ -231,7 +298,7 @@ export function createRenderer(renderOptions) {
     }
   };
 
-  const patchElement = (n1, n2, container) => {
+  const patchElement = (n1: VNode, n2: VNode, container) => {
     // 1. 比较元素的差异，需要复用dom
     // 2. 比较属性和元素的子节点
 
@@ -246,15 +313,35 @@ export function createRenderer(renderOptions) {
     patchChildren(n1, n2, el);
   };
 
-  const patch = (n1, n2, container, anchor = null) => {
+  /**
+   * 对新旧节点进行比对更新操作，对节点本身比对更新props等数据。如果有children，则递归进行这些操作。
+   * @param n1 vnode | null
+   * @param n2 vnode
+   * @param container
+   * @param anchor
+   * @returns
+   */
+  const patch: PatchFn = (n1, n2, container, anchor = null) => {
     // 两次一样的元素，则跳过
     if (n1 === n2) {
       return;
     }
 
-    if (n1 && !isSameVNode(n1, n2)) {
+    // 策略是：如果vnode 类型不一致，卸载旧的vnode，即n1；
+    // 并将n1设置为null，配合processElement的逻辑，挂载n2
+    if (n1 && !isSameVNodeType(n1, n2)) {
       unmount(n1);
       n1 = null;
+    }
+
+    const { type, ref, shapeFlag } = n2;
+    switch (type) {
+      case Text:
+        break;
+      // .....
+      default:
+        if (shapeFlag & ShapeFlags.ELEMENT) {
+        }
     }
 
     // 对元素处理

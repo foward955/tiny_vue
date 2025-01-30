@@ -19,9 +19,13 @@ export function computed(getterOrOptions) {
   return new ComputedRefImpl(getter, setter);
 }
 
+/**
+ * ComputedRefImpl 对象，只有在访问 .value 时才会计算值，并缓存结果，
+ * 如果effect依赖的响应式数据有了变化，则需要重新 执行effect.run() 获得返回值缓存起来。
+ */
 class ComputedRefImpl {
   public _value;
-  public effect;
+  public effect: ReactiveEffect;
   public dep;
 
   constructor(getter, public setter) {
